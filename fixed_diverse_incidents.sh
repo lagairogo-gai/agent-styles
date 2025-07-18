@@ -1,3 +1,382 @@
+
+#!/bin/bash
+
+echo "🚨 Adding 24+ Diverse Incident Scenarios to AI Monitoring System"
+echo "=============================================================="
+
+# Backup existing files
+echo "💾 Creating backup..."
+cp src/main.py src/main.py.backup
+cp frontend/src/App.js frontend/src/App.js.backup
+
+# Update the main.py file to include diverse incident scenarios
+echo "🔧 Enhancing main.py with diverse incident scenarios..."
+
+cat > src/main.py << 'EOF'
+"""
+Enhanced AI-Powered IT Operations Monitoring System
+Real-time workflow execution with diverse incident scenarios
+"""
+import os
+import asyncio
+import json
+import time
+import uuid
+import logging
+import sys
+import random
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+from enum import Enum
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+# Setup logging
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(logs_dir / "app.log")
+    ]
+)
+logger = logging.getLogger(__name__)
+
+class AgentStatus(Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+    WAITING = "waiting"
+
+class IncidentSeverity(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+@dataclass
+class AgentExecution:
+    agent_id: str
+    agent_name: str
+    execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    incident_id: str = ""
+    status: AgentStatus = AgentStatus.IDLE
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    progress: int = 0
+    logs: List[Dict[str, Any]] = field(default_factory=list)
+    input_data: Dict[str, Any] = field(default_factory=dict)
+    output_data: Dict[str, Any] = field(default_factory=dict)
+    error_message: str = ""
+    duration_seconds: float = 0.0
+
+@dataclass
+class Incident:
+    id: str = field(default_factory=lambda: f"INC-{int(time.time())}")
+    title: str = ""
+    description: str = ""
+    severity: IncidentSeverity = IncidentSeverity.MEDIUM
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    status: str = "open"
+    affected_systems: List[str] = field(default_factory=list)
+    workflow_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    workflow_status: str = "in_progress"
+    current_agent: str = ""
+    completed_agents: List[str] = field(default_factory=list)
+    failed_agents: List[str] = field(default_factory=list)
+    executions: Dict[str, AgentExecution] = field(default_factory=dict)
+    root_cause: str = ""
+    resolution: str = ""
+    pagerduty_incident_id: str = ""
+    servicenow_ticket_id: str = ""
+    remediation_applied: List[str] = field(default_factory=list)
+    incident_type: str = ""
+
+# Diverse incident scenarios database
+INCIDENT_SCENARIOS = [
+    {
+        "title": "Database Connection Pool Exhaustion - Production MySQL",
+        "description": "Production MySQL database experiencing connection pool exhaustion with applications unable to establish new connections.",
+        "severity": "critical",
+        "affected_systems": ["mysql-prod-01", "mysql-prod-02", "app-servers"],
+        "incident_type": "database",
+        "root_cause": "Connection pool exhaustion due to long-running queries"
+    },
+    {
+        "title": "DDoS Attack Detected - Main Web Application", 
+        "description": "Distributed Denial of Service attack targeting main web application with 50k requests/second.",
+        "severity": "critical",
+        "affected_systems": ["web-app-prod", "load-balancer", "cdn"],
+        "incident_type": "security",
+        "root_cause": "Coordinated DDoS attack using botnet infrastructure"
+    },
+    {
+        "title": "Redis Cache Cluster Memory Exhaustion",
+        "description": "Redis cache cluster experiencing memory exhaustion leading to cache misses and degraded performance.",
+        "severity": "high", 
+        "affected_systems": ["redis-cluster-01", "redis-cluster-02", "microservices"],
+        "incident_type": "infrastructure",
+        "root_cause": "Memory leak in session data storage"
+    },
+    {
+        "title": "SSL Certificate Expiration - E-commerce Platform",
+        "description": "SSL certificates expired causing browser warnings and preventing customer transactions.",
+        "severity": "critical",
+        "affected_systems": ["ecommerce-frontend", "payment-gateway", "api-endpoints"],
+        "incident_type": "security", 
+        "root_cause": "SSL certificate auto-renewal process failed"
+    },
+    {
+        "title": "Kubernetes Pod Crash Loop - Microservices",
+        "description": "Critical microservices experiencing crash loop backoff with OOMKilled status.",
+        "severity": "high",
+        "affected_systems": ["k8s-cluster", "user-service", "order-service"],
+        "incident_type": "container",
+        "root_cause": "Memory limits too restrictive for current workload"
+    },
+    {
+        "title": "Ransomware Detection - File Server Encryption",
+        "description": "Ransomware activity detected with multiple files showing .locked extension.",
+        "severity": "critical",
+        "affected_systems": ["file-server-01", "backup-server", "shared-storage"],
+        "incident_type": "security",
+        "root_cause": "Ransomware infiltration through compromised email"
+    },
+    {
+        "title": "API Rate Limit Exceeded - Payment Integration",
+        "description": "Third-party payment API rate limits exceeded causing transaction failures.",
+        "severity": "high",
+        "affected_systems": ["payment-service", "checkout-api", "billing-system"],
+        "incident_type": "api",
+        "root_cause": "Inefficient API call patterns and missing throttling"
+    },
+    {
+        "title": "Storage Array Disk Failure - RAID Degraded",
+        "description": "Storage array experiencing multiple disk failures with RAID in degraded state.",
+        "severity": "critical",
+        "affected_systems": ["storage-array", "database-volumes", "vm-datastores"],
+        "incident_type": "storage",
+        "root_cause": "Hardware failure due to disk age and excessive wear"
+    },
+    {
+        "title": "Network Switch Stack Failure - Data Center",
+        "description": "Core network switch stack failure causing connectivity issues across VLANs.",
+        "severity": "critical",
+        "affected_systems": ["core-switches", "vlan-infrastructure", "dc-links"],
+        "incident_type": "network",
+        "root_cause": "Switch stack master election failure due to firmware bug"
+    },
+    {
+        "title": "Docker Registry Corruption - Container Deployment",
+        "description": "Docker registry experiencing image corruption preventing deployments.",
+        "severity": "high",
+        "affected_systems": ["docker-registry", "ci-cd-pipeline", "deployment-systems"],
+        "incident_type": "container",
+        "root_cause": "Storage corruption in registry backend"
+    },
+    {
+        "title": "Active Directory Domain Controller Failure",
+        "description": "Primary AD domain controller failure causing authentication issues.",
+        "severity": "critical",
+        "affected_systems": ["ad-dc-primary", "ad-dc-secondary", "workstations"],
+        "incident_type": "authentication",
+        "root_cause": "Hardware failure with delayed replication"
+    },
+    {
+        "title": "Elasticsearch Cluster Split Brain - Search Service",
+        "description": "Elasticsearch cluster split brain condition causing search inconsistencies.",
+        "severity": "high",
+        "affected_systems": ["elasticsearch-cluster", "search-api", "analytics"],
+        "incident_type": "search",
+        "root_cause": "Network partition causing multiple master elections"
+    },
+    {
+        "title": "CDN Origin Server Overload - Media Streaming",
+        "description": "CDN origin servers overloaded with 85% cache miss ratio during peak hours.",
+        "severity": "high",
+        "affected_systems": ["cdn-origins", "media-cache", "streaming-platform"],
+        "incident_type": "cdn",
+        "root_cause": "CDN cache invalidation storm"
+    },
+    {
+        "title": "Message Queue Deadlock - Event Processing",
+        "description": "RabbitMQ experiencing deadlock with consumer processes hanging.",
+        "severity": "high",
+        "affected_systems": ["rabbitmq-cluster", "event-processors", "notifications"],
+        "incident_type": "messaging",
+        "root_cause": "Circular dependency in message processing"
+    },
+    {
+        "title": "Cloud Storage Misconfiguration - Data Exposure",
+        "description": "S3 bucket misconfiguration exposing sensitive customer data publicly.",
+        "severity": "critical",
+        "affected_systems": ["s3-buckets", "cloud-infrastructure", "data-pipeline"],
+        "incident_type": "security",
+        "root_cause": "Bucket policy misconfiguration during deployment"
+    },
+    {
+        "title": "DNS Resolution Failure - External Services",
+        "description": "DNS resolution failures causing application timeouts for external services.",
+        "severity": "medium",
+        "affected_systems": ["dns-servers", "external-apis", "web-applications"],
+        "incident_type": "dns",
+        "root_cause": "DNS server configuration drift"
+    },
+    {
+        "title": "Load Balancer Health Check Failures",
+        "description": "Load balancer health checks failing with 6 out of 10 servers marked unhealthy.",
+        "severity": "high",
+        "affected_systems": ["load-balancer", "web-servers", "application-tier"],
+        "incident_type": "loadbalancer",
+        "root_cause": "Health check timeout due to database bottleneck"
+    },
+    {
+        "title": "Backup System Corruption - Data Recovery",
+        "description": "Backup system experiencing corruption with last 3 backup sets failing integrity checks.",
+        "severity": "critical",
+        "affected_systems": ["backup-servers", "tape-library", "backup-software"],
+        "incident_type": "backup",
+        "root_cause": "Storage media degradation and software bug"
+    },
+    {
+        "title": "VPN Concentrator Overload - Remote Access",
+        "description": "VPN concentrator overloaded during peak remote work hours.",
+        "severity": "medium",
+        "affected_systems": ["vpn-concentrator", "remote-access", "auth-server"],
+        "incident_type": "vpn",
+        "root_cause": "Connection limit exceeded due to remote work demand"
+    },
+    {
+        "title": "IoT Device Botnet Activity - Network Security",
+        "description": "Suspicious botnet activity detected from IoT devices with coordinated traffic patterns.",
+        "severity": "high",
+        "affected_systems": ["iot-devices", "network-security", "firewalls"],
+        "incident_type": "security",
+        "root_cause": "IoT firmware vulnerability exploited for botnet"
+    },
+    {
+        "title": "Log Aggregation Disk Full - Monitoring",
+        "description": "Log aggregation system disk space exhausted, log ingestion stopped.",
+        "severity": "medium",
+        "affected_systems": ["log-aggregation", "elasticsearch", "monitoring"],
+        "incident_type": "monitoring",
+        "root_cause": "Log retention policy misconfiguration"
+    },
+    {
+        "title": "API Gateway Rate Limiting Malfunction",
+        "description": "API gateway rate limiting bypassed allowing excessive backend requests.",
+        "severity": "high",
+        "affected_systems": ["api-gateway", "backend-services", "database-pool"],
+        "incident_type": "api",
+        "root_cause": "Rate limiting service configuration error"
+    },
+    {
+        "title": "Microservice Circuit Breaker Triggered",
+        "description": "Multiple microservice circuit breakers triggered causing cascade failures.",
+        "severity": "high",
+        "affected_systems": ["microservices", "service-mesh", "api-gateway"],
+        "incident_type": "infrastructure",
+        "root_cause": "Dependency service degradation triggering circuit breakers"
+    },
+    {
+        "title": "Certificate Authority Compromise Alert",
+        "description": "Internal Certificate Authority potentially compromised, immediate rotation required.",
+        "severity": "critical",
+        "affected_systems": ["internal-ca", "ssl-certificates", "security-infrastructure"],
+        "incident_type": "security",
+        "root_cause": "Suspected CA private key compromise"
+    }
+]
+
+class WorkflowEngine:
+    def __init__(self):
+        self.active_incidents: Dict[str, Incident] = {}
+        self.incident_history: List[Incident] = []
+        self.agent_execution_history: Dict[str, List[AgentExecution]] = {
+            "monitoring": [], "rca": [], "pager": [], "ticketing": [], 
+            "email": [], "remediation": [], "validation": []
+        }
+        
+    async def trigger_incident_workflow(self, incident_data: Dict[str, Any]) -> Incident:
+        # If no title provided or default title, select random scenario
+        if not incident_data.get("title") or incident_data.get("title") == "High CPU Usage Alert - Production Web Servers":
+            scenario = random.choice(INCIDENT_SCENARIOS)
+            incident = Incident(
+                title=scenario["title"],
+                description=scenario["description"],
+                severity=IncidentSeverity(scenario["severity"]),
+                affected_systems=scenario["affected_systems"],
+                incident_type=scenario["incident_type"]
+            )
+        else:
+            incident = Incident(
+                title=incident_data.get("title", "Unknown Incident"),
+                description=incident_data.get("description", ""),
+                severity=IncidentSeverity(incident_data.get("severity", "medium")),
+                affected_systems=incident_data.get("affected_systems", []),
+                incident_type=incident_data.get("incident_type", "general")
+            )
+        
+        self.active_incidents[incident.id] = incident
+        asyncio.create_task(self._execute_workflow(incident))
+        return incident
+    
+    async def _execute_workflow(self, incident: Incident):
+        workflow_steps = [
+            ("monitoring", self._execute_monitoring_agent),
+            ("rca", self._execute_rca_agent),
+            ("pager", self._execute_pager_agent),
+            ("ticketing", self._execute_ticketing_agent),
+            ("email", self._execute_email_agent),
+            ("remediation", self._execute_remediation_agent),
+            ("validation", self._execute_validation_agent)
+        ]
+        
+        try:
+            for agent_id, agent_func in workflow_steps:
+                incident.current_agent = agent_id
+                incident.updated_at = datetime.now()
+                
+                execution = await agent_func(incident)
+                incident.executions[agent_id] = execution
+                self.agent_execution_history[agent_id].append(execution)
+                
+                if execution.status == AgentStatus.SUCCESS:
+                    incident.completed_agents.append(agent_id)
+                else:
+                    incident.failed_agents.append(agent_id)
+                
+                await asyncio.sleep(random.uniform(1.5, 3.0))
+            
+            incident.workflow_status = "completed"
+            incident.current_agent = ""
+            incident.status = "resolved" if len(incident.failed_agents) == 0 else "partially_resolved"
+            
+            self.incident_history.append(incident)
+            del self.active_incidents[incident.id]
+            
+        except Exception as e:
+            incident.workflow_status = "failed"
+            incident.status = "failed"
+            logger.error(f"Workflow failed for incident {incident.id}: {str(e)}")
+    
+    async def _execute_monitoring_agent(self, incident: Incident) -> AgentExecution:
+        execution = AgentExecution(
+            agent_id="monitoring", agent_name="Monitoring Agent",
+            incident_id=incident.id, input_data={"systems": incident.affected_systems}
+        )
+        
+        execution.status = AgentStatus.RUNNING
         execution.started_at = datetime.now()
         
         try:
