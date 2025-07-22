@@ -589,7 +589,7 @@ class WorkflowEngine:
             elif incident.incident_type == "container":
                 await self._log_activity(execution, "📦 Examining container orchestration patterns and resource allocation...")
                 execution.progress = 60
-                await
+           
 
                 await self._log_activity(execution, "🔍 Analyzing Kubernetes scheduler decisions and node capacity...")
                 
@@ -1169,7 +1169,7 @@ class WorkflowEngine:
                 "database": {"connections": "Normal (450/500)", "query_time": "<50ms", "cpu": "45%", "memory": "65%"},
                 "security": {"threat_level": "Green", "access_controls": "Active", "monitoring": "Enhanced", "systems": "Secured"},
             
-                "network": {"latency": "8ms", "packet_loss": "0%", "bandwidth", "Optimal", "redundancy": "Active"},
+                "network": {"latency": "8ms", "packet_loss": "0%", "bandwidth": "Optimal", "redundancy": "Active"},
                 "infrastructure": {"cpu": "35%", "memory": "58%", "disk": "68%", "services": "All Healthy"},
                 "container": {"pods": "All Running", "memory": "Optimal", "cpu": "40%", "replicas": "Desired State"},
                 "storage": {"raid_status": "Optimal", "disk_health": "Good", "io_latency": "1.2ms", "throughput": "Normal"},
